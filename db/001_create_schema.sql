@@ -96,10 +96,47 @@ CREATE TABLE IF NOT EXISTS merchants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
+    contact_name VARCHAR(255),
+    contact_email VARCHAR(255),
     status merchant_status NOT NULL DEFAULT 'INACTIVE',
+    bank_account_encrypted TEXT,
+    bank_account_hash VARCHAR(255),
+    encrypted_bank_data BYTEA,
+    previous_status merchant_status,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_merchants_status ON merchants(status);
+CREATE INDEX IF NOT EXISTS idx_merchants_email ON merchants(email);
+CREATE INDEX IF NOT EXISTS idx_merchants_contact_email ON merchants(contact_email);
+
+CREATE TABLE IF NOT EXISTS merchant_status_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+    previous_status merchant_status NOT NULL,
+    new_status merchant_status NOT NULL,
+    changed_by VARCHAR(255) NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_status_history_merchant ON merchant_status_history(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_status_history_timestamp ON merchant_status_history(created_at);
+
+CREATE TABLE IF NOT EXISTS merchant_audit_detail (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+    event_type VARCHAR(100) NOT NULL,
+    field_name VARCHAR(100) NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    changed_by VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_audit_detail_merchant ON merchant_audit_detail(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_audit_detail_event ON merchant_audit_detail(event_type);
 
 CREATE TABLE IF NOT EXISTS api_keys (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

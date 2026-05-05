@@ -1,0 +1,122 @@
+name: CI/CD Pipeline - Build, Test & Deploy
+
+on:
+  push:
+    branches: [ develop, main ]
+  pull_request:
+    branches: [ develop, main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Run tests
+      run: ./mvnw test -q
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: target/surefire-reports/
+
+  build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Build with Maven
+      run: ./mvnw clean package -DskipTests -q
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+          type=semver,pattern={{version}}
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Trigger Render deployment
+      run: |
+        curl --request POST \
+          --url https://api.render.com/deploy/srv-${{ secrets.RENDER_SERVICE_ID }}?key=${{ secrets.RENDER_API_KEY }} \
+          --header 'content-type: application/json'
+    
+    - name: Wait for deployment
+      run: sleep 30
+    
+    - name: Verify deployment
+      run: |
+        for i in {1..10}; do
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://embedded-payments-1.onrender.com/swagger-ui.html)
+          if [ $HTTP_CODE -eq 200 ]; then
+            echo "✅ Deployment successful!"
+            exit 0
+          fi
+          echo "⏳ Waiting for service... (attempt $i/10)"
+          sleep 10
+        done
+        echo "❌ Deployment verification failed"
+        exit 1

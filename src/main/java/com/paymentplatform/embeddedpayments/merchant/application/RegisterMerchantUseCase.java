@@ -1,5 +1,6 @@
 package com.paymentplatform.embeddedpayments.merchant.application;
 
+import com.paymentplatform.embeddedpayments.auth.application.GenerateMerchantApiKeyUseCase;
 import com.paymentplatform.embeddedpayments.merchant.domain.entity.Merchant;
 import com.paymentplatform.embeddedpayments.merchant.domain.repository.MerchantRepository;
 import com.paymentplatform.embeddedpayments.merchant.domain.services.MerchantDomainService;
@@ -14,24 +15,31 @@ public class RegisterMerchantUseCase {
     private final MerchantRepository merchantRepository;
     private final MerchantDomainService merchantDomainService;
     private final AuditEventService auditEventService;
+    private final GenerateMerchantApiKeyUseCase generateMerchantApiKeyUseCase;
 
     public RegisterMerchantUseCase(MerchantRepository merchantRepository,
                                    MerchantDomainService merchantDomainService,
-                                   AuditEventService auditEventService) {
+                                   AuditEventService auditEventService,
+                                   GenerateMerchantApiKeyUseCase generateMerchantApiKeyUseCase) {
         this.merchantRepository = merchantRepository;
         this.merchantDomainService = merchantDomainService;
         this.auditEventService = auditEventService;
+        this.generateMerchantApiKeyUseCase = generateMerchantApiKeyUseCase;
     }
 
-    public Merchant execute(String name, String email) {
+    public RegisteredMerchant execute(String name, String email) {
         Merchant merchant = merchantDomainService.buildNewMerchant(name, email);
         Merchant savedMerchant = merchantRepository.save(merchant);
+        String apiKey = generateMerchantApiKeyUseCase.execute(savedMerchant.getId());
 
         String origin = resolveOrigin();
         String actor = resolveActor();
         auditEventService.registerMerchantCreated(savedMerchant.getId(), origin, actor);
 
-        return savedMerchant;
+        return new RegisteredMerchant(savedMerchant, apiKey);
+    }
+
+    public record RegisteredMerchant(Merchant merchant, String apiKey) {
     }
 
     private String resolveOrigin() {
@@ -51,4 +59,3 @@ public class RegisterMerchantUseCase {
         return authentication.getName();
     }
 }
-

@@ -1,0 +1,198 @@
+@startuml
+title Embedded Payments Platform - Deployment Diagram (Target Final)
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment left
+skinparam nodesep 35
+skinparam ranksep 30
+
+legend right
+  == Convenciones ==
+  <<Target>> Arquitectura objetivo del producto final
+  <<Container>> Servicio desplegado en contenedor
+  <<External>> Sistema externo
+endlegend
+
+cloud "Internet" as internet
+
+node "On-Premise" as onprem {
+  node "Stakeholders / Operaciones" as users {
+    artifact "Web Frontend\n<<Target>>" as web
+    artifact "Mobile App\n<<Target>>" as mobile
+    artifact "Backoffice Admin\n<<Target>>" as backoffice
+    artifact "Postman / QA Client" as postman
+  }
+}
+
+cloud "GitHub Cloud" as github {
+  artifact "Source Repo\nembedded-payments" as repo
+  node "GitHub Actions CI/CD\n<<Target>>" as actions {
+    artifact "Build + Test + SAST" as pipeline
+    artifact "Docker Image" as image
+  }
+}
+
+cloud "Render Cloud" as render {
+  node "Edge Security\n<<Target>>" as edge {
+    component "TLS Termination / WAF / Rate Limiting" as waf
+  }
+
+  node "Application Runtime (Docker)" as runtime {
+    node "api-gateway-service\n<<Container>>" as gateway {
+      component "API Gateway\nRouting, throttling, auth policies" as apiGateway
+    }
+
+    node "embedded-payments-app\n<<Container>>" as app {
+      component "Spring Boot Modular Monolith" as monolith
+
+      package "Presentation Layer" {
+        [Auth API] as authApi
+        [Merchant API] as merchantApi
+        [Payments API] as paymentsApi
+        [Transactions API] as txApi
+        [Refunds API] as refundApi
+        [Webhooks API] as webhookApi
+      }
+
+      package "Application Layer (Use Cases)" {
+        [LoginUseCase] as loginUC
+        [RegisterUserUseCase] as registerUserUC
+        [VerifyMFAUseCase] as verifyMfaUC
+        [RevokeTokenUseCase] as revokeTokenUC
+        [RegisterMerchantUseCase] as registerMerchantUC
+        [GetMerchantProfileUseCase] as getMerchantUC
+        [GenerateApiKeysUseCase] as genApiKeyUC
+        [CreatePaymentIntentUseCase] as createIntentUC
+        [ConfirmPaymentUseCase] as confirmPaymentUC
+        [CancelPaymentUseCase] as cancelPaymentUC
+        [RegisterTransactionUseCase] as registerTxUC
+        [GetTransactionHistoryUseCase] as txHistoryUC
+        [CreateRefundUseCase] as createRefundUC
+      }
+
+      package "Domain Layer" {
+        [Entities\nMerchant, Customer, PaymentIntent, Transaction, Refund, Role, Permission] as entities
+        [Domain Services\nPaymentService, FraudDetectionService] as domainServices
+        [Repository Interfaces\nMerchant, Payment, Transaction, Refund, Customer, Role] as repoInterfaces
+      }
+
+      package "Cross Cutting" {
+        [JWTService] as jwtService
+        [PasswordPolicyService] as pwdPolicy
+        [TokenBlacklistService] as tokenBlacklist
+        [ApiKeyValidator] as apiKeyValidator
+        [PermissionChecker / RBAC] as permissionChecker
+        [AuditService + AuditEvent] as auditSvc
+        [GlobalErrorHandler + ApiErrorResponse] as errorHandler
+        [Logger + TraceIdGenerator] as observabilityCore
+      }
+
+      package "Infrastructure Layer" {
+        [Persistence\nRepositoryImpl + JPA] as persistence
+        [RedisCache] as cacheComp
+        [SwaggerConfig / OpenAPI] as docsComp
+        [WebhookDispatcher] as webhookDispatcher
+        [DatabaseConnection] as dbConnection
+      }
+    }
+
+    node "webhook-worker\n<<Container>><<Target>>" as worker {
+      component "Async Webhook Delivery\nRetry + DLQ" as webhookWorker
+    }
+  }
+
+  database "PostgreSQL Managed\n<<Target>>" as postgres {
+    artifact "Core schema:\nusers, roles, permissions,\nmerchants, api_keys, customers,\npayment_intents, transactions, refunds,\naudit_logs, auth_session, audit_event" as schema
+  }
+
+  database "Redis Managed\n<<Target>>" as redis
+
+  node "Observability Stack\n<<Target>>" as obs {
+    component "Log Aggregation" as logAgg
+    component "Metrics + Alerting" as metrics
+    component "Tracing" as tracing
+  }
+}
+
+cloud "External Providers" as external {
+  node "Bank / Acquirer API\n<<External>>" as acquirer
+  node "Notification Provider\n(email/sms/push) <<External>>" as notifier
+  node "Merchant Webhook Endpoints\n<<External>>" as merchantWebhook
+}
+
+' ======================
+' Flujo y protocolos
+' ======================
+
+web --> internet : HTTPS 443 (REST/JSON)
+mobile --> internet : HTTPS 443 (REST/JSON)
+backoffice --> internet : HTTPS 443 (REST/JSON)
+postman --> internet : HTTPS 443 (REST/JSON)
+
+internet --> edge : HTTPS 443
+edge --> gateway : HTTPS 443
+gateway --> app : HTTP internal :8085
+
+repo --> pipeline : git push / PR
+pipeline --> image : docker build
+image --> runtime : deploy container image
+
+app --> postgres : JDBC over TLS :5432
+app --> redis : TLS :6379
+app --> obs : OTLP/HTTP + logs
+app --> acquirer : HTTPS 443
+app --> notifier : HTTPS 443
+
+webhookDispatcher --> worker : internal queue/event bus
+worker --> merchantWebhook : HTTPS 443 (signed webhook)
+
+' Relacion interna de capas
+monolith --> authApi
+monolith --> merchantApi
+monolith --> paymentsApi
+monolith --> txApi
+monolith --> refundApi
+monolith --> webhookApi
+
+authApi --> loginUC
+authApi --> registerUserUC
+authApi --> verifyMfaUC
+authApi --> revokeTokenUC
+merchantApi --> registerMerchantUC
+merchantApi --> getMerchantUC
+merchantApi --> genApiKeyUC
+paymentsApi --> createIntentUC
+paymentsApi --> confirmPaymentUC
+paymentsApi --> cancelPaymentUC
+txApi --> registerTxUC
+txApi --> txHistoryUC
+refundApi --> createRefundUC
+
+loginUC --> jwtService
+registerMerchantUC --> apiKeyValidator
+createIntentUC --> domainServices
+registerTxUC --> repoInterfaces
+createRefundUC --> repoInterfaces
+
+repoInterfaces --> persistence
+persistence --> dbConnection
+dbConnection --> postgres
+cacheComp --> redis
+
+auditSvc --> persistence
+errorHandler --> observabilityCore
+permissionChecker --> repoInterfaces
+tokenBlacklist --> cacheComp
+
+logAgg --> metrics
+metrics --> tracing
+
+note bottom of app
+Arquitectura objetivo: modular monolith endurecido,
+seguridad RBAC + MFA, cache distribuido, webhooks asincronos,
+observabilidad completa y CI/CD automatizado.
+end note
+
+@enduml
+

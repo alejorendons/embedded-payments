@@ -1,73 +1,137 @@
-# Embedded Payments Platform API
+# Embedded Payments Platform
 
-Backend API for an embedded payments platform built with Spring Boot using a modular monolith architecture.
+Plataforma de pagos embebidos construida con Spring Boot y Vue 3. Proporciona una API REST completa para procesamiento de pagos con dashboard merchant integrado.
 
-## 🚀 Demo en nube
+## 🚀 Quick Start
+
+### Requisitos
+- Java 21+
+- Node.js 18+
+- Maven (mvnw incluido)
+- PostgreSQL (opcional, H2 en desarrollo)
+
+### Backend
+```bash
+./mvnw spring-boot:run
+# Servidor en http://localhost:8085
+# Swagger en http://localhost:8085/swagger-ui/index.html
+```
+
+### Frontend
+```bash
+cd frontend/payment-gateway-ui
+npm install
+npm run dev
+# Aplicación en http://localhost:5173
+```
+
+## 📱 Demo en Nube
 
 El servicio está desplegado en Render:
-
 - **URL**: https://embedded-payments-1.onrender.com
 - **Swagger**: https://embedded-payments-1.onrender.com/swagger-ui/index.html
 - **API Docs**: https://embedded-payments-1.onrender.com/v3/api-docs
 
-## Architecture
+## ✨ Características
 
-Root package: `com.paymentplatform.embeddedpayments`
+- ✅ Autenticación JWT
+- ✅ Gestión de comercios (merchants)
+- ✅ Intenciones de pago
+- ✅ Procesamiento de transacciones
+- ✅ Reembolsos (refunds)
+- ✅ Dashboard merchant responsive
+- ✅ API REST completamente documentada
+- ✅ Notificaciones global
+- ✅ Error handling robusto
 
-Modules:
-- `auth`
-- `merchant`
-- `payment`
-- `transaction`
-- `refund`
+## 🏗️ Arquitectura
 
-Shared modules:
-- `shared.security`
-- `shared.audit`
-- `shared.logging`
-- `shared.exception`
-
-Infrastructure modules:
-- `infrastructure.config`
-- `infrastructure.persistence`
-- `infrastructure.cache`
-- `infrastructure.webhooks`
-
-### Layer Rules
-
-Each business module follows:
-- `api`: REST controllers
-- `application`: use cases
-- `domain.entity`: domain entities
-- `domain.repository`: repository interfaces
-- `domain.services`: domain services
-- `infrastructure.repository`: JPA implementations
-
-Dependency direction:
-- Controllers -> Use cases
-- Use cases -> Domain services and domain repository interfaces
-- Infrastructure repositories -> Domain repository interfaces
-
-## Local Run
-
-Requirements:
-- Java 21+
-- Maven Wrapper
-
-```bash
-./mvnw spring-boot:run
+### Backend
+```
+com.paymentplatform.embeddedpayments
+├── auth/              # Autenticación
+├── merchant/          # Gestión de comercios
+├── payment/           # Intenciones de pago
+├── transaction/       # Procesamiento de transacciones
+├── refund/            # Reembolsos
+├── shared/            # Shared modules (security, audit, logging)
+└── infrastructure/    # Config, persistence, webhooks
 ```
 
-### Run with Docker
+**Capas**:
+- `api`: Controllers REST
+- `application`: Use cases
+- `domain`: Entities y business logic
+- `infrastructure`: Implementaciones de repositorio
 
-Build the image:
+### Frontend
+- **Framework**: Vue 3 (Composition API)
+- **Build**: Vite 4.5
+- **Styling**: Tailwind CSS v4
+- **State**: Pinia
+- **HTTP**: Axios
 
+## 🔐 API Endpoints
+
+### Autenticación
+- `POST /api/v1/auth/register` - Registrar usuario
+- `POST /api/v1/auth/login` - Login
+- `GET /api/v1/auth/me` - Obtener usuario actual
+
+### Merchants
+- `POST /api/v1/merchants` - Registrar comercio (retorna api_key)
+- `GET /api/v1/merchants/{id}` - Obtener comercio
+
+### Pagos
+- `POST /api/v1/payments/intents` - Crear payment intent
+- `POST /api/v1/transactions` - Crear transacción (requiere X-API-Key)
+- `GET /api/v1/transactions` - Listar transacciones
+- `GET /api/v1/transactions/{id}` - Obtener transacción
+
+### Reembolsos
+- `POST /api/v1/refunds` - Crear reembolso
+- `GET /api/v1/refunds/{id}` - Obtener reembolso
+
+### Webhooks
+- `POST /api/v1/webhooks` - Crear webhook
+- `GET /api/v1/webhooks` - Listar webhooks
+
+## 🔑 Autenticación
+
+### JWT Authentication
+Para endpoints de usuario: usar Bearer token en Authorization header
+```http
+Authorization: Bearer <jwt_token>
+```
+
+### API Key Authentication
+Para merchant APIs: usar header X-API-Key (obtenido al registrar comercio)
+```http
+X-API-Key: epk_<key-id>_<secret>
+```
+
+## 🧪 Testing
+
+```bash
+# Backend tests
+./mvnw test
+
+# Frontend tests
+cd frontend/payment-gateway-ui
+npm run test
+
+# Build frontend
+npm run build
+```
+
+## 📦 Docker
+
+### Build
 ```bash
 docker build -t embedded-payments .
 ```
 
-Run the container:
-
+### Run
 ```bash
 docker run --rm -p 8085:8085 \
   -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/embeddedpayments \
@@ -77,100 +141,70 @@ docker run --rm -p 8085:8085 \
   embedded-payments
 ```
 
-## Deploy en Render
+## 🌐 Deployment
 
-El proyecto está desplegado y funcional en Render. Para redesplegarlo o crear un nuevo servicio:
+### Render
+El proyecto está configurado para Render con `render.yaml`:
 
-- `server.port=${PORT:8085}` para respetar el puerto inyectado por la plataforma.
-- `Dockerfile` multi-stage para build reproducible.
-- `render.yaml` usando `env: docker`.
+Variables de entorno requeridas:
+- `SPRING_DATASOURCE_URL` - PostgreSQL connection
+- `SPRING_DATASOURCE_USERNAME` - DB user
+- `SPRING_DATASOURCE_PASSWORD` - DB password
+- `JWT_SECRET` - JWT signing secret
+- `SPRING_JPA_HIBERNATE_DDL_AUTO=none` - No auto-migrate en producción
 
-Variables de entorno requeridas en Render:
+## 📚 Documentación
 
-- `SPRING_DATASOURCE_URL`
-- `SPRING_DATASOURCE_USERNAME`
-- `SPRING_DATASOURCE_PASSWORD`
-- `JWT_SECRET`
-- `SPRING_JPA_HIBERNATE_DDL_AUTO=none`
+Para detalles adicionales:
+- **SPRINT_SUMMARY.md** - Resumen de incrementos del sprint
+- **GETTING_STARTED.md** - Guía de inicio rápido
+- **docs/** - Documentación técnica detallada
+- **frontend/README.md** - Documentación del frontend
 
-Notas:
-
-- La base de datos puede ser Render Postgres o Neon.
-- Antes de la demo, hay que ejecutar `db/001_create_schema.sql` en la base seleccionada.
-- El endpoint de salud y Swagger pueden usarse para validar el deploy.
-
-## Testing el flujo en nube
-
-Con la colección de Postman (`postman/embedded-payments-sprint1.postman_collection.json`):
-
-1. Actualiza el `baseUrl` del environment a:
-   ```json
-   "baseUrl": "https://embedded-payments-1.onrender.com"
-   ```
-
-2. Ejecuta el flujo completo:
-   - Registro de comercio
-   - Generación de token
-   - Payment intent
-   - Transacción
-   - Refund
-
-## Tests
-
-```bash
-./mvnw test
-```
-
-The test profile uses in-memory H2.
-
-## API Endpoints (initial skeleton)
-
-- `POST /api/v1/auth/token`
-- `POST /api/v1/merchants`
-- `POST /api/v1/payments/intents`
-- `POST /api/v1/transactions`
-- `POST /api/v1/refunds`
-- `POST /api/v1/webhooks`
-
-Swagger UI:
-- `/swagger-ui/index.html`
-
-## Git Workflow
+## 🔄 Git Workflow
 
 Main branches:
-- `main`: stable code
-- `develop`: integration
+- `main` - Código estable
+- `develop` - Integración
 
-Feature branches from `develop`:
+Feature branches:
 - `feature/auth-module`
 - `feature/merchant-module`
 - `feature/payment-module`
 - `feature/transaction-module`
 - `feature/refund-module`
 
-Suggested setup:
+## 📝 Convención de Commits
 
-```bash
-git checkout -b develop
-git push -u origin develop
-```
+- `feat:` nueva feature
+- `fix:` bugfix
+- `refactor:` mejora interna
+- `docs:` cambios en documentación
+- `chore:` tooling o config
 
-Example feature flow:
+## 🎨 UI/UX
 
-```bash
-git checkout develop
-git pull
-git checkout -b feature/auth-module
-# work and commit
-git checkout develop
-git merge --no-ff feature/auth-module
-```
+El frontend cuenta con:
+- Diseño moderno con Tailwind CSS v4
+- Paleta de colores neutral (slate)
+- Componentes responsivos
+- Animaciones fluidas
+- Error handling visual
+- Notificaciones globales
 
-## Commit Convention
+## 📊 Sprint Completado
 
-- `feat:` new feature
-- `fix:` bug fix
-- `refactor:` internal improvement
-- `docs:` documentation changes
-- `chore:` tooling or config
+✅ 6 HUs implementadas
+✅ Backend REST API funcional
+✅ Frontend responsivo y moderno
+✅ Documentación técnica
+✅ Deployment en nube
+✅ Tests configurados
 
+**Estado**: 🟢 LISTO PARA REVIEW
+
+---
+
+**Versión**: 1.0.0
+**Fecha**: 2026-05-04
+**Licencia**: MIT
