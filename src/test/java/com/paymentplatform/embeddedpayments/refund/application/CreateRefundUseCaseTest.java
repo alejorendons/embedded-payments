@@ -105,4 +105,22 @@ class CreateRefundUseCaseTest {
 
         verify(refundRepository, never()).save(any());
     }
+
+    @Test
+    void debeLanzarNotFoundCuandoPaymentIntentNoExiste() {
+        UUID merchantId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        UUID paymentIntentId = UUID.randomUUID();
+
+        PaymentTransaction mockTx = new PaymentTransaction(transactionId, paymentIntentId, new BigDecimal("10"), "SUCCEEDED", Instant.now());
+
+        when(transactionRepository.findById(transactionId)).thenReturn(Optional.of(mockTx));
+        when(paymentRepository.findById(paymentIntentId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> useCase.execute(merchantId, transactionId, new BigDecimal("10"), "x"))
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("Payment intent not found");
+
+        verify(refundRepository, never()).save(any());
+    }
 }
