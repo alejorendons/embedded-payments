@@ -26,6 +26,9 @@ public class UserAccount {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Column
+    private String name;
+
     @Column(nullable = false)
     private String status;
 
@@ -64,6 +67,10 @@ public class UserAccount {
         return passwordHash;
     }
 
+    public String getName() {
+        return name;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -74,6 +81,19 @@ public class UserAccount {
 
     public Set<AuthRole> getRoles() {
         return roles;
+    }
+
+    public void updateProfile(String email, String name) {
+        if (email != null && !email.isBlank()) {
+            this.email = email;
+        }
+        if (name != null && !name.isBlank()) {
+            this.name = name;
+        }
+    }
+
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
     }
 
     public String getPrimaryRole() {

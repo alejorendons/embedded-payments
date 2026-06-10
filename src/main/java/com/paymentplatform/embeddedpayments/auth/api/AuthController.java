@@ -1,13 +1,17 @@
 package com.paymentplatform.embeddedpayments.auth.api;
 
+import com.paymentplatform.embeddedpayments.auth.application.ChangePasswordUseCase;
 import com.paymentplatform.embeddedpayments.auth.application.GetCurrentMerchantUseCase;
 import com.paymentplatform.embeddedpayments.auth.application.IssueMerchantTokenUseCase;
 import com.paymentplatform.embeddedpayments.auth.application.LoginMerchantUseCase;
 import com.paymentplatform.embeddedpayments.auth.application.LogoutMerchantUseCase;
 import com.paymentplatform.embeddedpayments.auth.application.RegisterUserUseCase;
 import com.paymentplatform.embeddedpayments.auth.application.RefreshTokenUseCase;
+import com.paymentplatform.embeddedpayments.auth.application.UpdateProfileUseCase;
+import com.paymentplatform.embeddedpayments.auth.domain.entity.UserAccount;
 import com.paymentplatform.embeddedpayments.shared.exception.DomainException;
 import com.paymentplatform.embeddedpayments.shared.security.AuthenticationService;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -19,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +38,8 @@ public class AuthController {
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final RegisterUserUseCase registerUserUseCase;
     private final GetCurrentMerchantUseCase getCurrentMerchantUseCase;
+    private final UpdateProfileUseCase updateProfileUseCase;
+    private final ChangePasswordUseCase changePasswordUseCase;
     private final AuthenticationService authenticationService;
 
     public AuthController(IssueMerchantTokenUseCase issueMerchantTokenUseCase,
@@ -41,6 +48,8 @@ public class AuthController {
                           RefreshTokenUseCase refreshTokenUseCase,
                           RegisterUserUseCase registerUserUseCase,
                           GetCurrentMerchantUseCase getCurrentMerchantUseCase,
+                          UpdateProfileUseCase updateProfileUseCase,
+                          ChangePasswordUseCase changePasswordUseCase,
                           AuthenticationService authenticationService) {
         this.issueMerchantTokenUseCase = issueMerchantTokenUseCase;
         this.loginMerchantUseCase = loginMerchantUseCase;
@@ -48,6 +57,8 @@ public class AuthController {
         this.refreshTokenUseCase = refreshTokenUseCase;
         this.registerUserUseCase = registerUserUseCase;
         this.getCurrentMerchantUseCase = getCurrentMerchantUseCase;
+        this.updateProfileUseCase = updateProfileUseCase;
+        this.changePasswordUseCase = changePasswordUseCase;
         this.authenticationService = authenticationService;
     }
 
@@ -114,6 +125,46 @@ public class AuthController {
         ));
     }
 
+    @PutMapping("/me")
+    public ResponseEntity<CurrentUserResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        UUID currentUserId = authenticationService.getCurrentUserId();
+        if (currentUserId == null) {
+            throw new DomainException(
+                    HttpStatus.UNAUTHORIZED,
+                    "UNAUTHORIZED",
+                    "User is not authenticated",
+                    List.of()
+            );
+        }
+
+        UserAccount updatedUser = updateProfileUseCase.execute(currentUserId, request.email(), request.name());
+        UUID merchantId = authenticationService.getCurrentMerchantId();
+
+        return ResponseEntity.ok(new CurrentUserResponse(
+                updatedUser.getId(),
+                updatedUser.getEmail(),
+                updatedUser.getStatus(),
+                authenticationService.getCurrentUserRole(),
+                merchantId
+        ));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        UUID currentUserId = authenticationService.getCurrentUserId();
+        if (currentUserId == null) {
+            throw new DomainException(
+                    HttpStatus.UNAUTHORIZED,
+                    "UNAUTHORIZED",
+                    "User is not authenticated",
+                    List.of()
+            );
+        }
+
+        changePasswordUseCase.execute(currentUserId, request.currentPassword(), request.newPassword());
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/token")
     public ResponseEntity<TokenResponse> issueToken(@Valid @RequestBody TokenRequest request) {
         IssueMerchantTokenUseCase.IssuedToken token = issueMerchantTokenUseCase.execute(request.merchantId());
@@ -144,6 +195,22 @@ public class AuthController {
     }
 
     public record TokenRequest(@NotNull UUID merchantId) {
+    }
+
+    public record UpdateProfileRequest(
+            @NotBlank(message = "Email is required")
+            @Email(message = "Email should be valid")
+            String email,
+            String name) {
+    }
+
+    public record ChangePasswordRequest(
+            @NotBlank(message = "Current password is required")
+            @JsonProperty("current_password")
+            String currentPassword,
+            @NotBlank(message = "New password is required")
+            @JsonProperty("new_password")
+            String newPassword) {
     }
 
     public record TokenResponse(String token, Instant expiresAt) {

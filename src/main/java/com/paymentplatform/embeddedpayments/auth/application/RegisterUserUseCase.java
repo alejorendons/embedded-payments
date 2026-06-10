@@ -20,6 +20,7 @@ public class RegisterUserUseCase {
 
     private static final String ADMIN = "ADMIN";
     private static final String USER = "USER";
+    private static final String SUPER_ADMIN = "SUPER_ADMIN";
 
     private final UserAccountJpaRepository userAccountRepository;
     private final AuthRoleJpaRepository authRoleRepository;
@@ -85,7 +86,7 @@ public class RegisterUserUseCase {
                 savedUser.getId(),
                 savedUser.getEmail(),
                 savedUser.getStatus(),
-                roleName,
+                normalizedRole,
                 merchantId,
                 apiKey
         );
@@ -97,11 +98,11 @@ public class RegisterUserUseCase {
         }
 
         String normalized = role.trim().toUpperCase();
-        if (!ADMIN.equals(normalized) && !USER.equals(normalized)) {
+        if (!ADMIN.equals(normalized) && !USER.equals(normalized) && !SUPER_ADMIN.equals(normalized)) {
             throw new DomainException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_ROLE",
-                    "Role must be ADMIN or USER",
+                    "Role must be ADMIN, USER or SUPER_ADMIN",
                     List.of("role: " + role)
             );
         }
@@ -111,6 +112,9 @@ public class RegisterUserUseCase {
     private String toSpringRole(String role) {
         if (ADMIN.equals(role)) {
             return "ROLE_ADMIN";
+        }
+        if (SUPER_ADMIN.equals(role)) {
+            return "ROLE_SUPER_ADMIN";
         }
         return "ROLE_USER";
     }

@@ -10,13 +10,6 @@ import net.serenitybdd.screenplay.Actor;
 import net.serenitybdd.screenplay.rest.abilities.CallAnApi;
 import java.util.UUID;
 
-/**
- * Step definitions para HU 1.1 – Registro de Comercio (pasos Given / When).
- *
- * Los pasos Then comunes están en {@link CommonSteps}.
- * Sigue el patrón Screenplay: Actor → Tasks → Questions.
- * Las llamadas HTTP van contra la API real en http://localhost:8085.
- */
 public class HU11_RegistroComercioSteps {
 
     private static final String API_BASE_URL = "http://localhost:8085";
